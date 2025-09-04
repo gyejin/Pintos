@@ -1,6 +1,10 @@
 {
     "name": "pintos-dev",
-    "dockerFile": "Dockerfile",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": ".."
+    },
+    "updateRemoteUserUID": false,
     "remoteUser": "jungle",
     "customizations": {
         "vscode": {
@@ -11,7 +15,7 @@
                 "ms-vscode.makefile-tools"
             ],
             "settings": {
-                "terminal.integrated.defaultProfile.linux": "bash"
+                "terminal.integrated.defaultProfile.linux": "zsh"
             }
         }
     }
