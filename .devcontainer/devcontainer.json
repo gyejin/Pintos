@@ -5,7 +5,7 @@
         "context": ".."
     },
     "updateRemoteUserUID": false,
-    "remoteUser": "jungle",
+    "remoteUser": "root",
     "customizations": {
         "vscode": {
             "extensions": [
