@@ -112,6 +112,7 @@ thread_init (void) {
 	lock_init (&tid_lock);
 	list_init (&ready_list);
 	list_init (&destruction_req);
+	list_init (&sleep_list);	/* sleep_list 초기화 */
 
 	/* Set up a thread structure for the running thread. */
 	initial_thread = running_thread ();
