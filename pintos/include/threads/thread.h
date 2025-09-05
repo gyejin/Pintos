@@ -91,6 +91,7 @@ struct thread {
 	enum thread_status status;          /* Thread state. */
 	char name[16];                      /* Name (for debugging purposes). */
 	int priority;                       /* Priority. */
+	unsigned wakeup_tick;				/* 스레드가 깨어날 시간 저장 */
 
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
