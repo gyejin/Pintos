@@ -312,6 +312,15 @@ thread_yield (void) {
 	intr_set_level (old_level);
 }
 
+void
+thread_sleep(int64_t wakeup_tick){
+	struct thread *t = thread_current ();		//현재 스레드 불러오기
+	t->wakeup_tick = wakeup_tick;		//깨어날 시간 저장
+	list_push_back(&sleep_list, &t->elem);		//sleep_list에 잠자러갈 스레드 추가
+
+	thread_block();		//THREAD_BLOCKED 상태로 전환, 스레드의 상태를 바꾸고 스케줄러를 호출
+}
+
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) {
