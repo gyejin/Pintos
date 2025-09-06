@@ -133,6 +133,9 @@ void thread_sleep(int64_t wakeup_tick);
 /* 스레드를 깨우는 함수 */
 void thread_wakeup(int64_t ticks);
 
+/* 우선순위 비교 함수 */
+bool compare_priority (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+
 struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);

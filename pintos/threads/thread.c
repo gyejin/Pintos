@@ -247,7 +247,9 @@ thread_unblock (struct thread *t) {
 
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	list_push_back (&ready_list, &t->elem);
+	//삽입을 정렬된 스레드 리스트로 ready_list에 넣어주기 (우선순위 비교 방식으로)
+	list_insert_ordered(&ready_list, &t->elem, compare_priority, NULL);
+	//list_push_back (&ready_list, &t->elem);
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
 }
@@ -310,7 +312,9 @@ thread_yield (void) {
 
 	old_level = intr_disable ();
 	if (curr != idle_thread)
-		list_push_back (&ready_list, &curr->elem);
+		//삽입을 정렬된 스레드 리스트로 ready_list에 넣어주기 (우선순위 비교 방식으로)
+		list_insert_ordered(&ready_list, &curr->elem, compare_priority, NULL);
+		//list_push_back (&ready_list, &curr->elem);
 	do_schedule (THREAD_READY);
 	intr_set_level (old_level);
 }
@@ -362,6 +366,23 @@ void thread_wakeup(int64_t ticks){
         }
     }
 }
+
+bool compare_priority (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
+	struct thread *fa = list_entry(a, struct thread, elem);		//a의 원소로부터 구조체 시작 주소를 가져와 fa로 넣음
+	struct thread *fb = list_entry(b, struct thread, elem);		//b의 원소로부터 구조체 시작 주소를 가져와 fb로 넣음
+	
+	return fa->priority > fb->priority;		//첫 번째 스레드의 우선순위가 두 번째 스레드의 우선순위보다 커야함
+}
+
+	/*
+	if (fa->priority > fb->priority){
+		return true;
+	}
+	else{
+		return false;
+	}
+	*/
+
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
