@@ -128,7 +128,7 @@ void thread_block (void);
 void thread_unblock (struct thread *);
 
 /* 스레드를 재우는 함수 */
-void thread_sleep(unsigned wakeup_tick);
+void thread_sleep(int64_t wakeup_tick);
 
 /* 스레드를 깨우는 함수 */
 void thread_wakeup(int64_t ticks);
