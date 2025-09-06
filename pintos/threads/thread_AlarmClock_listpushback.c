@@ -31,9 +31,6 @@ static struct list ready_list;
 /* 잠자는 스레드를 저장할 전역 리스트 선언 */
 static struct list sleep_list;
 
-/* sleep_list에서 가장 빨리 깨어날 시간을 저장할 전역 변수 추가 */
-int64_t next_wakeup_tick = INT64_MAX;
-
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -319,9 +316,6 @@ void
 thread_sleep(int64_t wakeup_tick){
 	struct thread *t = thread_current ();		//현재 스레드 불러오기
 	t->wakeup_tick = wakeup_tick;		//깨어날 시간 저장
-	if (next_wakeup_tick > wakeup_tick){		//가장 빨리 깨어날 시간을 깨어날 시간끼리 비교하여 저장
-		next_wakeup_tick = wakeup_tick;
-	}
 	list_push_back(&sleep_list, &t->elem);		//sleep_list에 잠자러갈 스레드 추가
 
 	thread_block();		//THREAD_BLOCKED 상태로 전환, 스레드의 상태를 바꾸고 스케줄러를 호출
@@ -330,12 +324,6 @@ thread_sleep(int64_t wakeup_tick){
 void thread_wakeup(int64_t ticks){
 	struct list_elem *e;
 	struct list_elem *next_elem;
-	
-	/* next_wakeup_tick 최적화 핵심 : 다음 스레드가 깨어날 시간보다 현재시간이 이르면 함수 호출 종료*/
-	if (ticks < next_wakeup_tick) {
-		return;
-	}
-
 	//리스트 순회 : 리스트 처음부터 다음으로 넘어가면서 끝이 나올때까지 반복
 	for (e = list_begin (&sleep_list); e != list_end (&sleep_list); e = next_elem) {		//다음 리스트 노드는 next_elem으로
     	//스레드 부품을 통해 본체를 찾아오기
@@ -349,18 +337,6 @@ void thread_wakeup(int64_t ticks){
 			//t->status = THREAD_READY;		//스레드 상태를 레디로 바꾸고 -> thread_unblock에 있음
 		}
 	}
-	//2단계: 남은 스레드들 중 가장 빠른 wakeup_tick을 다시 찾음
-    next_wakeup_tick = INT64_MAX; // 일단 최댓값으로 초기화
-    if (!list_empty(&sleep_list)) {
-        //sleep_list를 다시 순회하며 가장 작은 wakeup_tick을 찾음
-        for (e = list_begin(&sleep_list); e != list_end(&sleep_list); e = list_next(e)) {
-            struct thread *t = list_entry(e, struct thread, elem);
-            
-			if (t->wakeup_tick < next_wakeup_tick) {		//가장 빨리 깨어날 시간을 깨어날 시간끼리 비교하여 저장
-                next_wakeup_tick = t->wakeup_tick;			//새로운 깨어날 시간 저장
-            }
-        }
-    }
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
