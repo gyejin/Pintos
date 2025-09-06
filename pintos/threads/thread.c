@@ -321,6 +321,24 @@ thread_sleep(int64_t wakeup_tick){
 	thread_block();		//THREAD_BLOCKED 상태로 전환, 스레드의 상태를 바꾸고 스케줄러를 호출
 }
 
+void thread_wakeup(int64_t ticks){
+	struct list_elem *e;
+	struct list_elem *next_elem;
+	//리스트 순회 : 리스트 처음부터 다음으로 넘어가면서 끝이 나올때까지 반복
+	for (e = list_begin (&sleep_list); e != list_end (&sleep_list); e = next_elem) {		//다음 리스트 노드는 next_elem으로
+    	//스레드 부품을 통해 본체를 찾아오기
+		struct thread * t = list_entry(e, struct thread, elem);
+		//↓밑에서 list_remove로 노드가 삭제되어 연결이 끊기기 전에 다음 스레드를 임시 저장
+		next_elem = list_next(e);		 
+
+		if (ticks >= t->wakeup_tick){		//현재시간이 깨울시간이랑 같거나 지났으면
+			list_remove(e);		//이전노드-다음노드 연결리스트 연결시키고 내꺼뺌  
+			thread_unblock(t);	//sleep_list스레드를 ready_list로 추가하고 상태를 THREAD_READY로 바꿈
+			//t->status = THREAD_READY;		//스레드 상태를 레디로 바꾸고 -> thread_unblock에 있음
+		}
+	}
+}
+
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) {

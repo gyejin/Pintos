@@ -136,8 +136,16 @@ timer_print_stats (void) {
 static void
 timer_interrupt (struct intr_frame *args UNUSED) {
 	ticks++;
+	thread_wakeup(ticks);		//스레드 깨우기 함수 호출
 	thread_tick ();
 }
+	/*
+	struct list_elem *e;
+	//리스트 순회 : 리스트 처음부터 다음으로 넘어가면서 끝이 나올때까지 반복
+	for (e = list_begin (); e != list_end (list); e = list_next (e)) {
+    	// 여기서 e를 사용해서 작업을 수행!
+	}
+	*/
 
 /* Returns true if LOOPS iterations waits for more than one timer
    tick, otherwise false. */

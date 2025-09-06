@@ -130,6 +130,9 @@ void thread_unblock (struct thread *);
 /* 스레드를 재우는 함수 */
 void thread_sleep(unsigned wakeup_tick);
 
+/* 스레드를 깨우는 함수 */
+void thread_wakeup(int64_t ticks);
+
 struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
