@@ -250,6 +250,17 @@ thread_unblock (struct thread *t) {
 	//삽입을 정렬된 스레드 리스트로 ready_list에 넣어주기 (우선순위 비교 방식으로)
 	list_insert_ordered(&ready_list, &t->elem, compare_priority, NULL);
 	//list_push_back (&ready_list, &t->elem);
+
+	struct thread *curr = thread_current();		//현재 실행중인 스레드 가져옴
+	struct list_elem *e = list_begin (&ready_list);		//ready_list의 맨 앞 요소를 가져옴
+	struct thread *front_ready = list_entry(e, struct thread, elem);		//맨 앞 스레드 시작주소를 list_entry로 찾고 front_ready로 넣어줌
+
+	if (!list_empty(&ready_list)){		//ready_list에 스레드가 존재하면
+		if (curr->priority < front_ready->priority){		//현재 실행중일 스레드와 ready_list의 맨앞 스레드와 비교
+			thread_yield();		//양보
+		}
+	}
+
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
 }
@@ -388,6 +399,16 @@ bool compare_priority (const struct list_elem *a, const struct list_elem *b, voi
 void
 thread_set_priority (int new_priority) {
 	thread_current ()->priority = new_priority;
+	/* 우선순위가 변경될때에도 양보해줘야할 필요가 있음 thread_unblock의 '선점' 로직 그대로 들고옴*/
+	struct thread *curr = thread_current();
+	struct list_elem *e = list_begin (&ready_list);
+	struct thread *front_ready = list_entry(e, struct thread, elem);
+
+	if (!list_empty(&ready_list)){
+		if (curr->priority < front_ready->priority){
+			thread_yield();
+		}
+	}
 }
 
 /* Returns the current thread's priority. */
