@@ -1,6 +1,8 @@
-alarm-simultaneous FAIL
-alarm-single FAIL
-alarm-priority FAIL
-alarm-zero FAIL
-alarm-negative FAIL
-alarm-multiple FAIL
+priority-preempt PASS
+alarm-simultaneous PASS
+alarm-single PASS
+alarm-priority PASS
+priority-fifo PASS
+alarm-zero PASS
+alarm-negative PASS
+alarm-multiple PASS
