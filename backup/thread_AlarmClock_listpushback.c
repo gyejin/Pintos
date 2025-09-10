@@ -314,14 +314,19 @@ thread_yield (void) {
 
 void
 thread_sleep(int64_t wakeup_tick){
+	enum intr_level old_level = intr_disable();
 	struct thread *t = thread_current ();		//현재 스레드 불러오기
 	t->wakeup_tick = wakeup_tick;		//깨어날 시간 저장
 	list_push_back(&sleep_list, &t->elem);		//sleep_list에 잠자러갈 스레드 추가
 
 	thread_block();		//THREAD_BLOCKED 상태로 전환, 스레드의 상태를 바꾸고 스케줄러를 호출
+	intr_set_level(old_level);
+
 }
 
 void thread_wakeup(int64_t ticks){
+	enum intr_level old_level = intr_disable();
+
 	struct list_elem *e;
 	struct list_elem *next_elem;
 	//리스트 순회 : 리스트 처음부터 다음으로 넘어가면서 끝이 나올때까지 반복
@@ -337,6 +342,7 @@ void thread_wakeup(int64_t ticks){
 			//t->status = THREAD_READY;		//스레드 상태를 레디로 바꾸고 -> thread_unblock에 있음
 		}
 	}
+	intr_set_level(old_level);
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */

@@ -260,17 +260,19 @@ thread_unblock (struct thread *t) {
 		!list_empty(&ready_list) &&
 	 	curr->priority < list_entry(list_begin (&ready_list), struct thread, elem)->priority;
 
+	//intr_set_level (old_level);		//양보를 하지 않았을때만 인터럽트 복원
+
 	if (need_preempt){
 		if(intr_context()){
 			intr_yield_on_return();
 		}
-		else if(curr != idle_thread){	//현재 스레드가 idle 상태가 아닐때
-			intr_set_level (old_level);		//interrupt 복원하고
-			thread_yield();		//양보해줘야함
+		else if(thread_current() != idle_thread){
+			intr_set_level (old_level);
+			thread_yield();
 			return;
 		}
 	}
-	intr_set_level (old_level);	//양보 안해줬으면 interrupt 복원해줘야함
+	intr_set_level (old_level);
 }
 
 /* Returns the name of the running thread. */
@@ -359,7 +361,6 @@ thread_sleep(int64_t wakeup_tick){
 	}
 }
 
-
 void thread_wakeup(int64_t ticks){
 	enum intr_level old_level = intr_disable();
 
@@ -398,13 +399,6 @@ void thread_wakeup(int64_t ticks){
 	intr_set_level(old_level);
 }
 
-bool compare_donation_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
-	struct thread *ta = list_entry(a, struct thread, donation_elem);
-	struct thread *tb = list_entry(b, struct thread, donation_elem);
-	
-	return ta->priority > tb->priority;
-}
-
 bool compare_priority (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
 	struct thread *fa = list_entry(a, struct thread, elem);		//a의 원소로부터 구조체 시작 주소를 가져와 fa로 넣음
 	struct thread *fb = list_entry(b, struct thread, elem);		//b의 원소로부터 구조체 시작 주소를 가져와 fb로 넣음
@@ -427,16 +421,7 @@ void
 thread_set_priority (int new_priority) {
 	enum intr_level old_level = intr_disable ();
 
-	thread_current()->origin_priority = new_priority;
-	thread_current()->priority = new_priority;
-
-
-	if(!list_empty(&thread_current()->donations)){
-		struct list_elem *max_pr = list_max(&thread_current()->donations, compare_donation_priority, NULL);
-        struct thread *max_thread = list_entry(max_pr, struct thread, donation_elem);
-        if (thread_current()->priority < max_thread->priority)
-            thread_current()->priority = max_thread->priority;
-	}
+	thread_current ()->priority = new_priority;
 	/* 우선순위가 변경될때에도 양보해줘야할 필요가 있음 thread_unblock의 '선점' 로직 그대로 들고옴*/
 	struct thread *curr = thread_current();
 
@@ -547,8 +532,6 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
 	t->magic = THREAD_MAGIC;
-	list_init(&t->donations);		//기부자 명단 리스트 초기화
-	t->origin_priority = priority;	//원래 본인 우선순위 저장(기부받기 전)
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
