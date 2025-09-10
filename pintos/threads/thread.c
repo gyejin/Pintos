@@ -359,6 +359,7 @@ thread_sleep(int64_t wakeup_tick){
 	}
 }
 
+
 void thread_wakeup(int64_t ticks){
 	enum intr_level old_level = intr_disable();
 
@@ -397,6 +398,13 @@ void thread_wakeup(int64_t ticks){
 	intr_set_level(old_level);
 }
 
+bool compare_donation_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
+	struct thread *ta = list_entry(a, struct thread, donation_elem);
+	struct thread *tb = list_entry(b, struct thread, donation_elem);
+	
+	return ta->priority > tb->priority;
+}
+
 bool compare_priority (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
 	struct thread *fa = list_entry(a, struct thread, elem);		//a의 원소로부터 구조체 시작 주소를 가져와 fa로 넣음
 	struct thread *fb = list_entry(b, struct thread, elem);		//b의 원소로부터 구조체 시작 주소를 가져와 fb로 넣음
@@ -419,7 +427,16 @@ void
 thread_set_priority (int new_priority) {
 	enum intr_level old_level = intr_disable ();
 
-	thread_current ()->priority = new_priority;
+	thread_current()->origin_priority = new_priority;
+	thread_current()->priority = new_priority;
+
+
+	if(!list_empty(&thread_current()->donations)){
+		struct list_elem *max_pr = list_max(&thread_current()->donations, compare_donation_priority, NULL);
+        struct thread *max_thread = list_entry(max_pr, struct thread, donation_elem);
+        if (thread_current()->priority < max_thread->priority)
+            thread_current()->priority = max_thread->priority;
+	}
 	/* 우선순위가 변경될때에도 양보해줘야할 필요가 있음 thread_unblock의 '선점' 로직 그대로 들고옴*/
 	struct thread *curr = thread_current();
 
@@ -530,6 +547,8 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
 	t->magic = THREAD_MAGIC;
+	list_init(&t->donations);		//기부자 명단 리스트 초기화
+	t->origin_priority = priority;	//원래 본인 우선순위 저장(기부받기 전)
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
