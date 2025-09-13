@@ -38,6 +38,7 @@
 #define USER_STACK 0x47480000
 
 /* Returns true if VADDR is a user virtual address. */
+//커널 침범하지 않았는지 user공간인지 확인
 #define is_user_vaddr(vaddr) (!is_kernel_vaddr((vaddr)))
 
 /* Returns true if VADDR is a kernel virtual address. */
