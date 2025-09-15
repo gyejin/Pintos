@@ -464,7 +464,7 @@ load (const char *file_name, struct intr_frame *if_) {
 	/* 2단계: 문자열 주소를 스택에 저장 */
 	/* 다음 argv 주소 0으로 */
     if_->rsp -= 8;		//스택 포인터를 8바이트(64비트) 만큼 내림
-    *(uint64_t *)if_->rsp = 0;		//argv[argc] = NULL 스택에 NULL포인터 저장
+    *(uint64_t *)if_->rsp = 0;		//argv[argc] = NULL 스택에 NULL포인터 저장 == 마지막 문자는 NULL
 
 	/* argv를 스택에 저장, argv 배열 자체를 스택에 push하는 과정 */
 	for (int i = argc - 1; i >= 0; i--) {
