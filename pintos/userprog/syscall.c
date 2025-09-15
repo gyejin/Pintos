@@ -63,15 +63,13 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			else if (fd == 0){ f->R.rax = -1; }	//STDIN이면 요류 처리 - 여기선 할거 아님
 			else {f->R.rax = -1;}			//그 외도 오류 처리
 			break;
+			
 		case SYS_EXIT:
 			uint64_t status = f->R.rdi;		//인자 개수? 종료 상태 코드
 			printf("%s: exit(%d)\n", thread_current()->name, status);		//0개 겠지뭐
 			thread_exit();
 			break;
 	}
-
-
-	printf ("system call!\n");
 	//thread_exit ();
 }
 

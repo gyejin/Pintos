@@ -327,9 +327,23 @@ load (const char *file_name, struct intr_frame *if_) {
 	struct thread *t = thread_current ();
 	struct ELF ehdr;
 	struct file *file = NULL;
+	//struct file *fn_copy = NULL;
+	char *fn_copy; 			//파싱하기 위해 문자열 복사 버퍼
+	char *copy_file_name = NULL;		//복사된 문자열 토큰으로 나눠받을 공간
+	char *save_ptr;		//토큰 자르고 난 다음 포인터 위치
 	off_t file_ofs;
 	bool success = false;
 	int i;
+
+	/* 파싱을 위한 복사할 문자열 버퍼 생성 및 복사 */
+	//fn_copy = (char*) malloc(sizeof(file_name));
+	fn_copy = palloc_get_page(0);
+	if (fn_copy == NULL) { goto done; }
+	strlcpy(fn_copy, file_name, PGSIZE);
+	
+	/* 파싱을 위한 선택 문자열 분리 및 파싱 */
+	copy_file_name = strtok_r(fn_copy, " ", &save_ptr);		//첫 토큰(실행 파일 이름) 얻기
+	if (copy_file_name == NULL) { goto done; }
 
 	/* Allocate and activate page directory. */
 	t->pml4 = pml4_create ();
@@ -338,9 +352,9 @@ load (const char *file_name, struct intr_frame *if_) {
 	process_activate (thread_current ());
 
 	/* Open executable file. */
-	file = filesys_open (file_name);
+	file = filesys_open (copy_file_name);		//복사한 파일명으로 넣기 수정
 	if (file == NULL) {
-		printf ("load: %s: open failed\n", file_name);
+		printf ("load: %s: open failed\n", copy_file_name);
 		goto done;
 	}
 
@@ -352,7 +366,7 @@ load (const char *file_name, struct intr_frame *if_) {
 			|| ehdr.e_version != 1
 			|| ehdr.e_phentsize != sizeof (struct Phdr)
 			|| ehdr.e_phnum > 1024) {
-		printf ("load: %s: error loading executable\n", file_name);
+		printf ("load: %s: error loading executable\n", fn_copy);
 		goto done;
 	}
 
@@ -414,15 +428,61 @@ load (const char *file_name, struct intr_frame *if_) {
 		goto done;
 
 	/* Start address. */
-	if_->rip = ehdr.e_entry;
+	if_->rip = ehdr.e_entry;		//프로그램 시작 위치 정보
 
 	/* TODO: Your code goes here.
 	 * TODO: Implement argument passing (see project2/argument_passing.html). */
+	/* 인자 토큰 파싱해서 저장 */
+	char *argv_tokens[MAX_ARGC];
+	int argc = 0;
+	
+	/* argv는 내부 토큰들을 가리킴 */
+	char *token;
+	argv_tokens[argc++] = copy_file_name;  //첫 토큰은 저장하고
+
+	//다음 토큰부터는 save_ptr 다음 토큰으로 저장하기 위해 NULL로 초기화
+	for (token = strtok_r(NULL, " ", &save_ptr); token!= NULL; token = strtok_r(NULL, " ", &save_ptr)) {
+    	argv_tokens[argc++] = token;
+	}
+
+	/* 1단계: 실제 문자열 값을 스택에 저장*/
+	/* 문자열들을 스택에 저장, 역순으로 넣어야함 위에서 아래로 */
+	void *argv_addrs[MAX_ARGC];
+    for (int i = argc - 1; i >= 0; i--) {
+        size_t token_len = strlen(argv_tokens[i]) + 1;		//토큰의 문자열 길이(\0포함)
+        if_->rsp -= token_len;		//스택 포인터를 문자열 길이만큼 내리고 -> 그 위치에 문자열을 복사할 공간 확보
+        memcpy(if_->rsp, argv_tokens[i], token_len);		//메모리에 문자열 복사
+        argv_addrs[i] = if_->rsp;	//복사된 문자열의 스택 주소 저장
+    }
+
+	/* 8바이트 정렬(패딩) */
+	while(if_->rsp % 8 != 0){
+		if_->rsp--;
+		*(uint8_t*)if_->rsp = 0;
+	}
+
+	/* 2단계: 문자열 주소를 스택에 저장 */
+	/* 다음 argv 주소 0으로 */
+    if_->rsp -= 8;		//스택 포인터를 8바이트(64비트) 만큼 내림
+    *(uint64_t *)if_->rsp = 0;		//argv[argc] = NULL 스택에 NULL포인터 저장
+
+	/* argv를 스택에 저장, argv 배열 자체를 스택에 push하는 과정 */
+	for (int i = argc - 1; i >= 0; i--) {
+    	if_->rsp -= 8;
+    	*(uint64_t *)if_->rsp = argv_addrs[i];
+	}
+
+	if_->R.rdi = argc;
+	if_->R.rsi = if_->rsp;
+
+	if_->rsp -= 8;
+	*(uint64_t*)if_->rsp = 0;
 
 	success = true;
 
 done:
 	/* We arrive here whether the load is successful or not. */
+	palloc_free_page (fn_copy);
 	file_close (file);
 	return success;
 }
