@@ -26,6 +26,7 @@ static void process_cleanup (void);
 static bool load (const char *file_name, struct intr_frame *if_);
 static void initd (void *f_name);
 static void __do_fork (void *);
+struct thread *get_child_thread(tid_t tid);
 
 /* General process initializer for initd and other process. */
 static void
@@ -40,21 +41,54 @@ process_init (void) {
  * Notice that THIS SHOULD BE CALLED ONCE. */
 tid_t
 process_create_initd (const char *file_name) {
-	char *fn_copy;
+	char *fn_copy;		//복사 받을 문자열 공간 정의
 	tid_t tid;
 
 	/* Make a copy of FILE_NAME.
 	 * Otherwise there's a race between the caller and load(). */
-	fn_copy = palloc_get_page (0);
+	fn_copy = palloc_get_page (0);	//복사 받기 위한 동적 할당
 	if (fn_copy == NULL)
 		return TID_ERROR;
-	strlcpy (fn_copy, file_name, PGSIZE);
+	strlcpy (fn_copy, file_name, PGSIZE);		//원본 파일명 복사
+	
+	//스레드 이름을 파싱하기 위해 file_name을 한 번 더 복사
+	char *thread_name_copy;
+	thread_name_copy = palloc_get_page(0);
+	if (thread_name_copy == NULL) {
+		palloc_free_page(fn_copy);
+		return TID_ERROR;
+	}
+	strlcpy(thread_name_copy, file_name, PGSIZE);
 
+	//strtok_r을 사용해 첫 번째 토큰(실행파일 이름)을 분리
+	char *parsed_name, *save_ptr;
+	parsed_name = strtok_r(thread_name_copy, " ", &save_ptr);
+	
 	/* Create a new thread to execute FILE_NAME. */
-	tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
+	//파싱한 실행 파일 이름을 스레드 이름으로 전달
+	//initd 함수에는 전체 명령어 라인(fn_copy)을 그대로 전달
+	tid = thread_create (parsed_name, PRI_DEFAULT, initd, fn_copy);
+
+	//스레드 이름 복사에 사용된 메모리를 해제
+	palloc_free_page(thread_name_copy);
+
 	if (tid == TID_ERROR)
 		palloc_free_page (fn_copy);
+	
 	return tid;
+}
+
+struct thread*
+get_child_thread(tid_t tid){
+	struct thread *parent = thread_current();
+	struct list_elem *e;
+	for (e = list_begin(&parent->child_list); e!= list_end(&parent->child_list); e = list_next(e)) {
+		struct thread *child = list_entry(e, struct thread, child_elem);
+		if ( child->tid == tid ){
+			return child;
+		}
+	}
+	return NULL;
 }
 
 /* A thread function that launches first user process. */
@@ -65,6 +99,8 @@ initd (void *f_name) {
 #endif
 
 	process_init ();
+	/* 부모의 자식 리스트 초기화 */
+	list_init(&thread_current()->child_list);
 
 	if (process_exec (f_name) < 0)
 		PANIC("Fail to launch initd\n");
@@ -201,12 +237,21 @@ process_exec (void *f_name) {
  * This function will be implemented in problem 2-2.  For now, it
  * does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) {
+process_wait (tid_t child_tid) {
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
-	while(1);
-	return -1;
+	struct thread *child = get_child_thread(child_tid);
+	if (child == NULL){
+		return -1;
+	}
+
+	sema_down(&child->wait_sema);
+	int status = child->exit_status;
+
+	list_remove(&child->child_elem);
+	
+	return status;
 }
 
 /* Exit the process. This function is called by thread_exit (). */
@@ -478,11 +523,13 @@ load (const char *file_name, struct intr_frame *if_) {
 	if_->rsp -= 8;
 	*(uint64_t*)if_->rsp = 0;
 
+	palloc_free_page (fn_copy);
+
 	success = true;
 
 done:
 	/* We arrive here whether the load is successful or not. */
-	palloc_free_page (fn_copy);
+	
 	file_close (file);
 	return success;
 }
