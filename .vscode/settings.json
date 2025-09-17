@@ -4,6 +4,9 @@
         "array": "c",
         "deque": "c",
         "vector": "c",
-        "string_view": "c"
-    }
+        "string_view": "c",
+        "intrinsic.h": "c",
+        "mmu.h": "c"
+    },
+    "C_Cpp.dimInactiveRegions": false
 }
