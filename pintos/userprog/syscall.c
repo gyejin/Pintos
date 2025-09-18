@@ -9,10 +9,15 @@
 #include "intrinsic.h"
 #include "console.h"
 #include "threads/mmu.h"
+#include "filesys/filesys.h"
+#include "filesys/file.h"
+#include "threads/synch.h"
+#include "threads/palloc.h"
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
 void check_address(void *addr);
+void sys_exit(int status);
 
 /* System call.
  *
@@ -27,8 +32,11 @@ void check_address(void *addr);
 #define MSR_LSTAR 0xc0000082        /* Long mode SYSCALL target */
 #define MSR_SYSCALL_MASK 0xc0000084 /* Mask for the eflags */
 
+static struct lock filesys_lock;
+
 void
 syscall_init (void) {
+    lock_init(&filesys_lock); // 락 초기화
 	write_msr(MSR_STAR, ((uint64_t)SEL_UCSEG - 0x10) << 48  |
 			((uint64_t)SEL_KCSEG) << 32);
 	write_msr(MSR_LSTAR, (uint64_t) syscall_entry);
@@ -66,28 +74,42 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			break;
 
 		case SYS_EXIT:
-			uint64_t status = (uint64_t) f->R.rdi;		//인자 개수? 종료 상태 코드
-			thread_current()->exit_status = status;		//부모 깨우기 전에 상태 저장
-
-			printf("%s: exit(%d)\n", thread_current()->name, status);		//0개 겠지뭐
-			sema_up(&thread_current()->wait_sema);		//자식이 종료될때 부모를 up 시켜 깨움, 부모를 가리키고 있음
-			thread_exit();		//부모 프로세스도 종료
+			sys_exit(f->R.rdi);
 			break;
 
 		case SYS_HALT:
 			power_off();
+			break;
+		
+		case SYS_CREATE: {
+			/* 인자 가져오기 */
+            const char *file = (const char *)f->R.rdi;		//파일 이름
+            unsigned initial_size = (unsigned)f->R.rsi;		//파일 초기 크기
+			/* 주소 유효성 검증 */
+            check_address((void *)file);		//파일 포인터가 NULL이거나 커널 메모리 영역을 가리키면 exit
+			/* 파일 생성+동기화 */
+            lock_acquire(&filesys_lock);		//락을 획득해서 여러프로세스 동시접근x, 다른 프로세스 끼어들지 못하게 제한
+            bool success = filesys_create(file, initial_size);		//파일 생성 초기 사이즈와 파일이름으로 (성공여부 반환)
+            lock_release(&filesys_lock);		//성공적으로 만들면 락 해제
+			/* 결과 반환 */
+            f->R.rax = success;		//성공 결과 반환
+            break;
+        }
 	}
-	//thread_exit ();
+}
+
+void sys_exit(int status){
+	struct thread *curr = thread_current();
+	curr->exit_status = status;		//부모 깨우기 전에 상태 저장
+	printf("%s: exit(%d)\n", curr->name, status);		//0개 겠지뭐
+	sema_up(&curr->wait_sema);		//자식이 종료될때 부모를 up 시켜 깨움, 부모를 가리키고 있음
+	thread_exit();		//부모 프로세스도 종료
 }
 
 void check_address(void *addr){
 	struct thread *curr = thread_current();
-	/* 커널 영역 침범 여부(KERN_BASE 미만 + NULL인지) */
-	if(!is_user_vaddr(addr) || addr == NULL){
-		thread_exit();		//즉시 프로세스 종료
-	}
-	/* 미할당 영역 접근 여부(가상주소 -> 페이지 테이블 매핑?) */
-	if(pml4_get_page(curr->pml4, addr) == NULL){
-		thread_exit();		//즉시 프로세스 종료
+	/* 커널 영역 침범 여부(KERN_BASE 미만 + NULL인지) || 미할당 영역 접근 여부(가상주소 -> 페이지 테이블 매핑?) */
+	if(!is_user_vaddr(addr) || addr == NULL || pml4_get_page(curr->pml4, addr) == NULL){
+		sys_exit(-1);
 	}
 }

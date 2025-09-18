@@ -598,6 +598,12 @@ init_thread(struct thread *t, const char *name, int priority)
     t->parent = NULL;
     list_init(&t->child_list);
 
+    /* FD 테이블 초기화 */
+    for (int i = 0; i < FD_MAX; i++) {
+        t->fd_table[i] = NULL;
+    }
+    t->next_fd = 3; //0(stdin), 1(stdout), 2(stderr) 은 예약되어 있으니까 3번부터 쓰기!
+
 #endif
     t->magic = THREAD_MAGIC;
 }
