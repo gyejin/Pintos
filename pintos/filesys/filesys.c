@@ -83,11 +83,13 @@ filesys_create (const char *name, off_t initial_size) {
  * or if an internal memory allocation fails. */
 struct file *
 filesys_open (const char *name) {
+	/* 루트 디렉토리 열기 */
 	struct dir *dir = dir_open_root ();
 	struct inode *inode = NULL;
 
+	/* 파일 검색, 인자로 받은 name과 일치하는 파일 항목 찾음 */
 	if (dir != NULL)
-		dir_lookup (dir, name, &inode);
+		dir_lookup (dir, name, &inode);		//찾으면 inode 포인터 변수에 파일 메타데이터가 담긴 주소 저장		
 	dir_close (dir);
 
 	return file_open (inode);

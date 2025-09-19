@@ -5,6 +5,7 @@ args-multiple PASS
 priority-donate-one PASS
 create-normal PASS
 priority-donate-lower PASS
+open-twice PASS
 exec-arg FAIL
 exec-missing FAIL
 create-long PASS
@@ -16,7 +17,10 @@ priority-condvar PASS
 priority-donate-nest PASS
 alarm-single PASS
 priority-donate-multiple2 PASS
+open-empty PASS
+open-null PASS
 alarm-priority PASS
+close-twice PASS
 args-none PASS
 create-bad-ptr PASS
 priority-fifo PASS
@@ -25,11 +29,15 @@ exec-read FAIL
 priority-sema PASS
 wait-twice FAIL
 exec-boundary FAIL
+close-normal PASS
 halt PASS
 alarm-zero PASS
+open-boundary PASS
 create-null PASS
+open-bad-ptr PASS
 priority-change PASS
 wait-killed FAIL
+close-bad-fd PASS
 alarm-negative PASS
 exit PASS
 priority-donate-sema PASS
@@ -38,5 +46,7 @@ exec-once FAIL
 args-many PASS
 alarm-multiple PASS
 create-exists PASS
+open-normal PASS
+open-missing PASS
 create-empty PASS
 args-single PASS
