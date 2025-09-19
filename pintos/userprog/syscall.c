@@ -105,6 +105,23 @@ void syscall_handler(struct intr_frame *f UNUSED)
 		f->R.rax = sys_open(file);
 		break;
 	}
+	case SYS_CLOSE:
+	{
+		sys_close((int)f->R.rdi);
+		break;
+	}
+	}
+}
+
+void sys_close(int fd)
+{
+	struct thread *curr = thread_current();
+	if (fd >= 3 && fd < FD_MAX && curr->fd_table[fd] != NULL)		// 사용자 정의 fd이고 사용자 영역 fd이면서 fd_table에 존재해야하면?
+	{
+		lock_acquire(&filesys_lock);
+		file_close(curr->fd_table[fd]); // 파일 닫기
+		lock_release(&filesys_lock);
+		curr->fd_table[fd] = NULL; // FD_table에서 제거
 	}
 }
 

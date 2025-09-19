@@ -52,8 +52,10 @@ file_duplicate (struct file *file) {
 void
 file_close (struct file *file) {
 	if (file != NULL) {
-		file_allow_write (file);
-		inode_close (file->inode);
+		//file_deny_write에 의해 쓰기 금지->file_allow_write를 통해 쓰기 허용
+		file_allow_write (file);		//닫히면 프로세스랑 연결 안되어있으니까 그냥 다른 프로세스가 파일을 수정할 수 있도록 허용
+		//inode와 관련된 자원 해제
+		inode_close (file->inode);		//inode의 open count를 1 감소 시킴 => 0되면(다른 곳에서도 열려있지 않으면) 디스크에서 삭제
 		free (file);
 	}
 }
