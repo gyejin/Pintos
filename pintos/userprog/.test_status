@@ -1,4 +1,5 @@
 exec-bad-ptr FAIL
+fork-multiple PASS
 args-dbl-space PASS
 read-bad-fd PASS
 priority-donate-multiple PASS
@@ -7,12 +8,14 @@ priority-donate-one PASS
 create-normal PASS
 priority-donate-lower PASS
 open-twice PASS
-exec-arg FAIL
 exec-missing FAIL
+exec-arg FAIL
 read-bad-ptr PASS
 create-long PASS
 priority-preempt PASS
+fork-close PASS
 alarm-simultaneous PASS
+fork-boundary PASS
 priority-donate-chain PASS
 create-bound PASS
 priority-condvar PASS
@@ -30,8 +33,8 @@ read-stdout PASS
 priority-fifo PASS
 wait-bad-pid PASS
 exec-read FAIL
-priority-sema PASS
 read-boundary PASS
+priority-sema PASS
 wait-twice FAIL
 exec-boundary FAIL
 close-normal PASS
@@ -40,8 +43,10 @@ write-bad-fd PASS
 alarm-zero PASS
 open-boundary PASS
 create-null PASS
+fork-recursive PASS
 open-bad-ptr PASS
 write-normal PASS
+fork-once PASS
 priority-change PASS
 write-boundary PASS
 wait-killed FAIL
@@ -53,6 +58,7 @@ priority-donate-sema PASS
 wait-simple FAIL
 exec-once FAIL
 args-many PASS
+fork-read PASS
 write-zero PASS
 alarm-multiple PASS
 create-exists PASS

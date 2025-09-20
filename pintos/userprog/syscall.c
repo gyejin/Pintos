@@ -1,18 +1,20 @@
 #include "userprog/syscall.h"
+#include "userprog/process.h"
 #include <stdio.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/loader.h"
-#include "userprog/gdt.h"
-#include "threads/flags.h"
-#include "intrinsic.h"
-#include "console.h"
-#include "threads/mmu.h"
-#include "filesys/filesys.h"
-#include "filesys/file.h"
 #include "threads/synch.h"
 #include "threads/palloc.h"
+#include "threads/flags.h"
+#include "threads/mmu.h"
+#include "userprog/gdt.h"
+#include "intrinsic.h"
+#include "console.h"
+#include "filesys/filesys.h"
+#include "filesys/file.h"
+
 
 void syscall_entry(void);
 void syscall_handler(struct intr_frame *);
@@ -99,8 +101,20 @@ void syscall_handler(struct intr_frame *f UNUSED)
 		break;
 	}
 	case SYS_FILESIZE:
+	{
 		f->R.rax = sys_filesize((int)f->R.rdi);
 		break;
+	}
+	case SYS_FORK:
+	{
+		f->R.rax = process_fork((const char *)f->R.rdi, f);
+		break;
+	}
+	case SYS_WAIT:
+	{
+		f->R.rax = process_wait((tid_t)f->R.rdi);
+		break;
+	}
 	}
 }
 

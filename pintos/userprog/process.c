@@ -112,8 +112,29 @@ initd (void *f_name) {
 tid_t
 process_fork (const char *name, struct intr_frame *if_ UNUSED) {
 	/* Clone current thread to new thread.*/
-	return thread_create (name,
-			PRI_DEFAULT, __do_fork, thread_current ());
+	struct thread *parent = thread_current();
+
+	/* fork한 세마포어 초기화 및 부모의 intr_frame저장 */
+	sema_init(&parent->fork_sema, 0);
+	memcpy(&parent->parent_if, if_, sizeof(struct intr_frame));
+
+	/* 자식 스레드 생성 */
+	tid_t child_tid = thread_create(name, PRI_DEFAULT, __do_fork, parent);
+
+	if (child_tid == TID_ERROR){
+		return TID_ERROR;
+	}
+
+	/* 자식이 리소스 복제를 완료할 때까지 대기 */
+	sema_down(&parent->fork_sema);
+
+	/* 자식이 fork에 실패했는지 확인 */
+	struct thread *child = get_child_thread(child_tid);
+	if (child == NULL || child->exit_status == -1){
+		return TID_ERROR;
+	}
+
+	return child_tid;
 }
 
 #ifndef VM
@@ -128,21 +149,40 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	bool writable;
 
 	/* 1. TODO: If the parent_page is kernel page, then return immediately. */
+	/* 커널 영역이면 복사x */
+	if (is_kernel_vaddr(va)){		
+		return true;
+	}
 
 	/* 2. Resolve VA from the parent's page map level 4. */
+	/* 부모 페이지 테이블에서 가상주소 va에 매핑된 물리 페이지 찾음 */
 	parent_page = pml4_get_page (parent->pml4, va);
+	if (parent_page == NULL){
+		return false;
+	}
 
 	/* 3. TODO: Allocate new PAL_USER page for the child and set result to
 	 *    TODO: NEWPAGE. */
+	/* 자식을 위한 새 물리페이지 할당 */
+	newpage = palloc_get_page(PAL_USER | PAL_ZERO);
+	if (newpage == NULL){
+		return false;
+	}
 
 	/* 4. TODO: Duplicate parent's page to the new page and
 	 *    TODO: check whether parent's page is writable or not (set WRITABLE
 	 *    TODO: according to the result). */
+	/* 부모 페이지 내용 자식 페이지로 복사 */
+	memcpy(newpage, parent_page, PGSIZE);
+	writable = is_writable(pte);
 
 	/* 5. Add new page to child's page table at address VA with WRITABLE
 	 *    permission. */
+	/* 자식 페이지 테이블에 va, newpage 매핑 추가 */
 	if (!pml4_set_page (current->pml4, va, newpage, writable)) {
 		/* 6. TODO: if fail to insert page, do error handling. */
+		palloc_free_page(newpage);
+		return false;
 	}
 	return true;
 }
@@ -159,10 +199,10 @@ __do_fork (void *aux) {
 	struct thread *current = thread_current ();
 	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
 	struct intr_frame *parent_if;
-	bool succ = true;
+	//bool succ = true;
 
 	/* 1. Read the cpu context to local stack. */
-	memcpy (&if_, parent_if, sizeof (struct intr_frame));
+	memcpy (&if_, &parent->parent_if, sizeof (struct intr_frame));
 
 	/* 2. Duplicate PT */
 	current->pml4 = pml4_create();
@@ -178,19 +218,31 @@ __do_fork (void *aux) {
 	if (!pml4_for_each (parent->pml4, duplicate_pte, parent))
 		goto error;
 #endif
-
 	/* TODO: Your code goes here.
 	 * TODO: Hint) To duplicate the file object, use `file_duplicate`
 	 * TODO:       in include/filesys/file.h. Note that parent should not return
 	 * TODO:       from the fork() until this function successfully duplicates
 	 * TODO:       the resources of parent.*/
+	/* FD 테이블 복제 */
+	for (int i =0; i < FD_MAX; i++){
+		struct file *file_obj = parent->fd_table[i];
+		if (file_obj != NULL){
+			/* 같은 파일을 가리키는 새 file 객체를 만듦 */
+			current->fd_table[i] = file_duplicate(file_obj);
+		}
+	}
+	current->next_fd = parent->next_fd;
 
-	process_init ();
+	/* 자식 프로세스 리턴 값 0으로 설정 */
+	if_.R.rax = 0;
 
-	/* Finally, switch to the newly created process. */
-	if (succ)
-		do_iret (&if_);
+	/* 리소스 복제가 끝났으면 부모 깨움 */
+	sema_up(&parent->fork_sema);
+
+	do_iret (&if_);
 error:
+	current->exit_status = -1;
+	sema_up(&parent->fork_sema);	//실패해도 부모는 깨움
 	thread_exit ();
 }
 
@@ -250,6 +302,7 @@ process_wait (tid_t child_tid) {
 	int status = child->exit_status;
 
 	list_remove(&child->child_elem);
+	//palloc_free_page(child);
 	
 	return status;
 }

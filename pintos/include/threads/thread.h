@@ -110,6 +110,9 @@ struct thread
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4; /* Page map level 4 */
+
+	struct semaphore fork_sema;		/* 자식 프로세스가 fork를 완료할때까지 부모가 기다리기 위한 세마포어 */
+	struct intr_frame parent_if;	/* 부모 레지스터 정보를 자식에게 전달하기 위한 프레임 */
 	
 	/* exit와 wait 동기화에 필요한 멤버 변수 */
 	int exit_status;			/* 자식 프로세스가 exit호출했을때 status값 저장 */
