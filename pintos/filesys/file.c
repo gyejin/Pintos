@@ -73,8 +73,11 @@ file_get_inode (struct file *file) {
  * Advances FILE's position by the number of bytes read. */
 off_t
 file_read (struct file *file, void *buffer, off_t size) {
-	off_t bytes_read = inode_read_at (file->inode, buffer, size, file->pos);
-	file->pos += bytes_read;
+	/* 파일 읽기, 하드디스크와 직접 상호작용 low level */
+	//inode 메타데이터 블록위치, bufeer 데이터 저장 목적지, size 읽으려는 데이터 양
+	//어디서부터 읽을지 offset(file->pos), inode_read_at은 데이터 바이트 수 반환
+	off_t bytes_read = inode_read_at (file->inode, buffer, size, file->pos);	
+	file->pos += bytes_read;		//파일을 읽은 후에 현재위치를 읽은 다음 위치로 변환
 	return bytes_read;
 }
 
@@ -97,6 +100,9 @@ file_read_at (struct file *file, void *buffer, off_t size, off_t file_ofs) {
  * Advances FILE's position by the number of bytes read. */
 off_t
 file_write (struct file *file, const void *buffer, off_t size) {
+	/* 파일 쓰기, 하드디스크와 직접 상호작용 low level */
+	//inode 메타데이터 블록위치, bufeer 데이터 저장 목적지, size 읽으려는 데이터 양
+	//어디서부터 쓸지 offset(file->pos), inode_wrtie_at은 쓰기 성공한 데이터 바이트 수 반환
 	off_t bytes_written = inode_write_at (file->inode, buffer, size, file->pos);
 	file->pos += bytes_written;
 	return bytes_written;
@@ -142,7 +148,7 @@ file_allow_write (struct file *file) {
 off_t
 file_length (struct file *file) {
 	ASSERT (file != NULL);
-	return inode_length (file->inode);
+	return inode_length (file->inode);		//inode(메타데이터)에서 data.length 파일 크기값 읽어오기
 }
 
 /* Sets the current position in FILE to NEW_POS bytes from the

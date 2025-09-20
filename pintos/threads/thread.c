@@ -602,7 +602,7 @@ init_thread(struct thread *t, const char *name, int priority)
     for (int i = 0; i < FD_MAX; i++) {
         t->fd_table[i] = NULL;
     }
-    t->next_fd = 3; //0(stdin), 1(stdout), 2(stderr) 은 예약되어 있으니까 3번부터 쓰기!
+    t->next_fd = 2; //0(stdin), 1(stdout), [2(stderr) KAIST Pintos는 2안씀]은 예약되어 있으니까 3번부터 쓰기!
 
 #endif
     t->magic = THREAD_MAGIC;

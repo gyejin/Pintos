@@ -18,8 +18,12 @@ void syscall_entry(void);
 void syscall_handler(struct intr_frame *);
 void check_address(void *addr);
 void sys_exit(int status);
-bool sys_create(const char *file, unsigned initial_size);
+static bool sys_create(const char *file, unsigned initial_size);
 static int sys_open(const char *file);
+static void sys_close(int fd);
+static int sys_read(int fd, void *buffer, unsigned size);
+static int sys_write(int fd, void *buffer, unsigned size);
+static int sys_filesize(int fd);
 
 /* System call.
  *
@@ -60,28 +64,7 @@ void syscall_handler(struct intr_frame *f UNUSED)
 	case SYS_WRITE:
 	{ // Write면
 		/* write는 fd,buffer,size순으로 레지스터에 담겨옴 */
-		uint64_t fd = f->R.rdi;
-		uint64_t buffer = f->R.rsi;
-		uint64_t size = f->R.rdx;
-
-		/* 버퍼 시작과 끝 검사하면 연속된 버퍼가 유효하다는 뜻 */
-		check_address((void *)buffer);
-		if (size > 0)
-			check_address((void *)buffer + size - 1);
-
-		if (fd == 1)
-		{										// STDOUT이면
-			putbuf((const char *)buffer, size); // 버퍼내용을 콘솔에 출력
-			f->R.rax = size;					// 성공했으면 size 반환
-		}
-		else if (fd == 0)
-		{
-			f->R.rax = -1;
-		} // STDIN이면 요류 처리 - 여기선 할거 아님
-		else
-		{
-			f->R.rax = -1;
-		} // 그 외도 오류 처리
+		f->R.rax = sys_write((int)f->R.rdi, (void *)f->R.rsi, (unsigned)f->R.rdx);
 		break;
 	}
 	case SYS_EXIT:
@@ -110,13 +93,100 @@ void syscall_handler(struct intr_frame *f UNUSED)
 		sys_close((int)f->R.rdi);
 		break;
 	}
+	case SYS_READ:
+	{
+		f->R.rax = sys_read((int)f->R.rdi, (void *)f->R.rsi, (unsigned)f->R.rdx);
+		break;
+	}
+	case SYS_FILESIZE:
+		f->R.rax = sys_filesize((int)f->R.rdi);
+		break;
 	}
 }
 
-void sys_close(int fd)
+static int sys_filesize(int fd)
 {
 	struct thread *curr = thread_current();
-	if (fd >= 3 && fd < FD_MAX && curr->fd_table[fd] != NULL)		// 사용자 정의 fd이고 사용자 영역 fd이면서 fd_table에 존재해야하면?
+	if (fd >= 2 && fd < FD_MAX && curr->fd_table[fd] != NULL)
+	{
+		lock_acquire(&filesys_lock);
+		off_t length = file_length(curr->fd_table[fd]);
+		lock_release(&filesys_lock);
+		return length;
+	}
+	else
+	{
+		return -1;
+	}
+}
+
+static int sys_write(int fd, void *buffer, unsigned size)
+{
+	/* 버퍼 시작과 끝 검사하면 연속된 버퍼가 유효하다는 뜻 */
+	check_address((void *)buffer);
+	if (size > 0)
+		check_address((void *)buffer + size - 1);
+	// 1. STDOUT이면
+	if (fd == 1)
+	{
+		putbuf((const char *)buffer, size); // 버퍼내용을 콘솔에 출력
+		return size;						// 성공했으면 size 반환
+	}
+	// 2. 일반 파일에 쓰기 (fd >= 2)
+	if (fd >= 2 && fd < FD_MAX)
+	{
+		struct thread *curr = thread_current();
+		struct file *file_obj = curr->fd_table[fd]; // fd가 실제로 열려있는 유효한 파일인지?
+		if (file_obj != NULL)						// 열려있으면
+		{
+			lock_acquire(&filesys_lock);
+			/* 쓰기 작업 수행 */
+			off_t bytes_written = file_write(file_obj, buffer, size); // 파일에 buffer 내용을 size바이트만 큼 쓰고, 쓰기에 성공한 바이트 수 만큼 반환
+			lock_release(&filesys_lock);
+			return bytes_written;
+		}
+	}
+	// 3. 유효하지 않은 fd (STDIN 포함)
+	return -1;
+}
+
+static int sys_read(int fd, void *buffer, unsigned size)
+{
+	/* 인자 검증 */
+	check_address(buffer);
+	if (size > 0)
+		check_address((void *)buffer + size - 1);
+	if (fd == 0)
+	{ // STDIN
+		// 키보드 입력은 Project 2 후반부에서 구현
+		return -1; // 임시로 실패 처리
+	}
+	else if (fd >= 2 && fd < FD_MAX)
+	{
+		struct file *file_obj = thread_current()->fd_table[fd]; // fd가 실제로 열려있는 유효한 파일인지?
+		if (file_obj != NULL)
+		{
+			lock_acquire(&filesys_lock);
+			/* 읽기 작업 수행 */
+			off_t bytes_read = file_read(file_obj, buffer, size); // 디스크에서 데이터를 읽어 사용자 버퍼에 저장, 성공적으로 읽은 바이트 수 반환
+			lock_release(&filesys_lock);
+			return bytes_read;
+		}
+		else
+		{
+			return -1;
+		}
+	}
+	else
+	{
+		return -1;
+	}
+}
+
+static void sys_close(int fd)
+{
+	struct thread *curr = thread_current();
+	if (fd >= 2 && fd < FD_MAX && curr->fd_table[fd] != NULL) // 사용자 정의 fd이고 사용자 영역 fd이면서 fd_table에 존재해야하면?
 	{
 		lock_acquire(&filesys_lock);
 		file_close(curr->fd_table[fd]); // 파일 닫기
@@ -125,7 +195,7 @@ void sys_close(int fd)
 	}
 }
 
-bool sys_create(const char *file, unsigned initial_size)
+static bool sys_create(const char *file, unsigned initial_size)
 {
 	/* 주소 유효성 검증 */
 	check_address((void *)file); // 파일 포인터가 NULL이거나 커널 메모리 영역을 가리키면 exit

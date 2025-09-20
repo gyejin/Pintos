@@ -264,7 +264,7 @@ process_exit (void) {
 	 * TODO: We recommend you to implement process resource cleanup here. */
 
     //프로세스가 열었던 모든 파일 닫기
-    for (int i = 3; i < FD_MAX; i++) {
+    for (int i = 2; i < FD_MAX; i++) {
         if (curr->fd_table[i] != NULL) {
             file_close(curr->fd_table[i]);
         }
