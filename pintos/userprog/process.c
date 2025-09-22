@@ -271,7 +271,7 @@ process_exec (void *f_name) {
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
 	if (!success)
-		return -1;
+		sys_exit(-1);
 
 	/* Start switched process. */
 	do_iret (&_if);
@@ -302,7 +302,8 @@ process_wait (tid_t child_tid) {
 	int status = child->exit_status;
 
 	list_remove(&child->child_elem);
-	//palloc_free_page(child);
+	//palloc_free_page(child);	//이게 아니고↓
+	child->parent = NULL;		//이렇게 부모 포인터 정리
 	
 	return status;
 }
@@ -316,12 +317,37 @@ process_exit (void) {
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
 
+	/* 커널에 의해 강제 종료된 경우 부모 wake-up */
+    if (curr->parent != NULL && !curr->exit_called) {
+        /* 예외/커널에 의해 스레드가 죽는 경우: 부모가 기다리고 있으면 깨워야 함
+           exit_status를 -1로 설정하여 '커널 의해 종료' 표기 */
+        curr->exit_status = -1;
+        curr->exit_called = true;
+        sema_up(&curr->wait_sema);
+    }
+
+    // 1. 실행 중이던 파일 닫기
+    if (curr->running_executable != NULL) {
+        file_close(curr->running_executable);
+        curr->running_executable = NULL;
+    }
+
     //프로세스가 열었던 모든 파일 닫기
     for (int i = 2; i < FD_MAX; i++) {
         if (curr->fd_table[i] != NULL) {
             file_close(curr->fd_table[i]);
         }
     }
+
+    // 3. wait 되지 않은 고아 자식들 처리
+    while (!list_empty(&curr->child_list)) {
+        struct list_elem *e = list_pop_front(&curr->child_list);
+        struct thread *child = list_entry(e, struct thread, child_elem);
+        //xxx고아가 된 자식은 스케줄러가 정리하도록 wait_sema를 올려줌 xxx
+		//->(변경) 부모가 종료됐으므로 child->wait_sema 를 올리는 것은 적절치 않음 => 부모가 사라졌음을 표시
+        child->parent = NULL;
+    }
+
 	process_cleanup ();
 }
 
@@ -462,6 +488,10 @@ load (const char *file_name, struct intr_frame *if_) {
 		goto done;
 	}
 
+	/* exec: */
+	file_deny_write(file);		//실행중인 파일에 대한 쓰기 금지
+	t->running_executable = file;	//현재 스레드에 실행 파일 정보 저장
+
 	/* Read and verify executable header. */
 	if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
 			|| memcmp (ehdr.e_ident, "\177ELF\2\1\1", 7)
@@ -582,14 +612,15 @@ load (const char *file_name, struct intr_frame *if_) {
 	if_->rsp -= 8;
 	*(uint64_t*)if_->rsp = 0;
 
-	palloc_free_page (fn_copy);
+	//palloc_free_page (fn_copy);
 
 	success = true;
 
 done:
 	/* We arrive here whether the load is successful or not. */
 	
-	file_close (file);
+	palloc_free_page (fn_copy);
+	//file_close (file);
 	return success;
 }
 

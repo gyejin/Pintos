@@ -15,7 +15,6 @@
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 
-
 void syscall_entry(void);
 void syscall_handler(struct intr_frame *);
 void check_address(void *addr);
@@ -26,6 +25,7 @@ static void sys_close(int fd);
 static int sys_read(int fd, void *buffer, unsigned size);
 static int sys_write(int fd, void *buffer, unsigned size);
 static int sys_filesize(int fd);
+static int sys_exec(const char *cmd_line);
 
 /* System call.
  *
@@ -110,12 +110,61 @@ void syscall_handler(struct intr_frame *f UNUSED)
 		f->R.rax = process_fork((const char *)f->R.rdi, f);
 		break;
 	}
+	case SYS_EXEC:
+	{
+		const char *cmd_line = (const char *)f->R.rdi;
+		f->R.rax = sys_exec(cmd_line);
+		break;
+	}
 	case SYS_WAIT:
 	{
 		f->R.rax = process_wait((tid_t)f->R.rdi);
 		break;
 	}
 	}
+}
+
+static int sys_exec(const char *cmd_line)
+{
+	struct thread *curr = thread_current();
+
+	if (cmd_line == NULL || !is_user_vaddr(cmd_line) || curr->pml4 == NULL)
+	{
+		return -1;
+	}
+
+	char *cmd_line_copy = palloc_get_page(0);
+	if (cmd_line_copy == NULL)
+	{
+		return -1;
+	}
+
+	bool ok = true;
+	size_t i;
+    /* 한 바이트씩 검증하면서 커널 페이지로 복사 (최대 PGSIZE) */
+	for (i = 0; i < PGSIZE; i++)
+	{
+		void *uaddr = (void *)(cmd_line + i);
+		if (!is_user_vaddr(uaddr) || pml4_get_page(curr->pml4, uaddr) == NULL)
+		{
+			ok = false;
+			break;
+		}
+		cmd_line_copy[i] = cmd_line[i];
+		if (cmd_line_copy[i] == '\0')
+			break;
+	}
+	if (!ok)
+	{
+		palloc_free_page(cmd_line_copy);
+		return -1;
+	}
+
+	if (process_exec(cmd_line_copy) == -1)
+	{
+		return -1;
+	}
+	/* process_exec이 성공하면 반환하지 않음(새 프로세스로 전환) */
 }
 
 static int sys_filesize(int fd)
@@ -260,6 +309,7 @@ void sys_exit(int status)
 {
 	struct thread *curr = thread_current();
 	curr->exit_status = status;					  // 부모 깨우기 전에 상태 저장
+	curr->exit_called = true;					  // 명시적 종료 시그널 설정
 	printf("%s: exit(%d)\n", curr->name, status); // 0개 겠지뭐
 	sema_up(&curr->wait_sema);					  // 자식이 종료될때 부모를 up 시켜 깨움, 부모를 가리키고 있음
 	thread_exit();								  // 부모 프로세스도 종료
@@ -269,7 +319,7 @@ void check_address(void *addr)
 {
 	struct thread *curr = thread_current();
 	/* 커널 영역 침범 여부(KERN_BASE 미만 + NULL인지) || 미할당 영역 접근 여부(가상주소 -> 페이지 테이블 매핑?) */
-	if (!is_user_vaddr(addr) || addr == NULL || pml4_get_page(curr->pml4, addr) == NULL)
+	if (!is_user_vaddr(addr) || addr == NULL || curr->pml4 == NULL || pml4_get_page(curr->pml4, addr) == NULL)
 	{
 		sys_exit(-1);
 	}

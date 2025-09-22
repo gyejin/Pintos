@@ -595,6 +595,7 @@ init_thread(struct thread *t, const char *name, int priority)
     /* userprog 관련 필드 초기화 — 안 하면 child_list 등 미초기화로 엉킴 */
     sema_init(&t->wait_sema, 0); /* 부모가 wait할 때 사용 */
     t->exit_status = 0;
+    t->exit_called = false;  /* 이미 exit 됐는지? 변수 초기화 */
     t->parent = NULL;
     list_init(&t->child_list);
 

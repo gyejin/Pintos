@@ -106,6 +106,7 @@ struct thread
 
 	struct file *fd_table[FD_MAX]; 		//파일 객체 포인터 배열
 	int next_fd; 		//다음에 할당할 fd 번호
+	struct file *running_executable;	//현재 실행 중인 파일 객체
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
@@ -120,6 +121,7 @@ struct thread
 	struct thread *parent;		/* 현재 스레드의 부모 스레드를 가리키는 포인터, 자식 종료->누구의 wait_sema를 깨울지 */
 	struct list child_list;		/* 부모 스레드의 모든 자식 저장, wait 시 리스트 검색하여 자식 찾음 */
 	struct list_elem child_elem;/* 현재(자식) 스레드를 부모의 child_list에 넣기 위한 연결고리 */
+	bool exit_called;           /* sys_exit() 등에서 이미 exit 처리가 되었는지 표시 */
 #endif
 #ifdef VM
 	/* Table for whole virtual memory owned by thread. */
