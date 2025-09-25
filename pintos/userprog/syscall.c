@@ -26,6 +26,7 @@ static int sys_read(int fd, void *buffer, unsigned size);
 static int sys_write(int fd, void *buffer, unsigned size);
 static int sys_filesize(int fd);
 static int sys_exec(const char *cmd_line);
+void sys_seek(int fd, unsigned position);
 
 /* System call.
  *
@@ -121,6 +122,22 @@ void syscall_handler(struct intr_frame *f UNUSED)
 		f->R.rax = process_wait((tid_t)f->R.rdi);
 		break;
 	}
+	case SYS_SEEK:
+	{
+		sys_seek((int)f->R.rdi, (unsigned)f->R.rsi); // file descriptor와 현재 위치 rsi 넘겨줌
+		break;
+	}
+	}
+}
+
+void sys_seek(int fd, unsigned position)
+{
+	struct thread *curr = thread_current();
+	if (fd >= 2 && fd < FD_MAX && curr->fd_table[fd] != NULL)		//fd 테이블 순회(fd0은 stdin, fd1은 stdout)
+	{
+		lock_acquire(&filesys_lock);
+		file_seek(curr->fd_table[fd], position);
+		lock_release(&filesys_lock);
 	}
 }
 
@@ -141,7 +158,7 @@ static int sys_exec(const char *cmd_line)
 
 	bool ok = true;
 	size_t i;
-    /* 한 바이트씩 검증하면서 커널 페이지로 복사 (최대 PGSIZE) */
+	/* 한 바이트씩 검증하면서 커널 페이지로 복사 (최대 PGSIZE) */
 	for (i = 0; i < PGSIZE; i++)
 	{
 		void *uaddr = (void *)(cmd_line + i);

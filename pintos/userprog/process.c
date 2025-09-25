@@ -252,7 +252,7 @@ int
 process_exec (void *f_name) {
 	char *file_name = f_name;
 	bool success;
-
+	struct thread *curr = thread_current();
 
 	/* We cannot use the intr_frame in the thread structure.
 	 * This is because when current thread rescheduled,
@@ -261,6 +261,14 @@ process_exec (void *f_name) {
 	_if.ds = _if.es = _if.ss = SEL_UDSEG;
 	_if.cs = SEL_UCSEG;
 	_if.eflags = FLAG_IF | FLAG_MBS;
+
+	/* rox 테스트 케이스 수정 */
+	// exec은 현재 프로세스를 교체하므로, 기존에 열려있던 실행 파일이 있다면
+    // load를 호출하기 전에 먼저 닫아주어야 리소스 누수를 막을 수 있습니다.
+    if (curr->running_executable != NULL) {
+        file_close(curr->running_executable);
+        curr->running_executable = NULL;
+    }
 
 	/* We first kill the current context */
 	process_cleanup ();
