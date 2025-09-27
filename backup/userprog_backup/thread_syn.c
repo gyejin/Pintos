@@ -598,7 +598,6 @@ init_thread(struct thread *t, const char *name, int priority)
     t->exit_status = 0;
     t->exit_called = false;  /* 이미 exit 됐는지? 변수 초기화 */
     t->parent = NULL;
-	t->running_executable = NULL;
     list_init(&t->child_list);
 
     /* FD 테이블 초기화 */
