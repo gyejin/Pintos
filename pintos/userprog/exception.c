@@ -5,6 +5,7 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "intrinsic.h"
+#include "userprog/syscall.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -86,7 +87,7 @@ kill (struct intr_frame *f) {
 			printf ("%s: dying due to interrupt %#04llx (%s).\n",
 					thread_name (), f->vec_no, intr_name (f->vec_no));
 			intr_dump_frame (f);
-			thread_exit ();
+			sys_exit(-1);
 
 		case SEL_KCSEG:
 			/* Kernel's code segment, which indicates a kernel bug.
@@ -149,12 +150,18 @@ page_fault (struct intr_frame *f) {
 	/* Count page faults. */
 	page_fault_cnt++;
 
-	/* If the fault is true fault, show info and exit. */
-	printf ("Page fault at %p: %s error %s page in %s context.\n",
-			fault_addr,
-			not_present ? "not present" : "rights violation",
-			write ? "writing" : "reading",
-			user ? "user" : "kernel");
-	kill (f);
+	if (user) {
+		// 사용자 프로그램이 일으킨 페이지 폴트인 경우
+		sys_exit(-1);
+	} else {
+		// 커널 모드에서 발생한 페이지 폴트는 심각한 버그입니다.
+		// (디버깅을 위해 기존 커널 패닉 로직을 유지할 수 있습니다)
+		printf ("Page fault at %p: %s error %s page in %s context.\n",
+				fault_addr,
+				not_present ? "not present" : "rights violation",
+				write ? "writing" : "reading",
+				user ? "user" : "kernel");
+		kill (f);
+	}
 }
 

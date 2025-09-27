@@ -128,16 +128,9 @@ process_fork (const char *name, struct intr_frame *if_ UNUSED) {
 	/* 자식이 리소스 복제를 완료할 때까지 대기 */
 	sema_down(&parent->fork_sema);
 
-	/* multi-oom 수정 부분
-	   fork에 실패했을 때, 부모는 에러를 반환하기 전에 실패한 자식 프로세스의 리소스를 직접 정리(reap)해주어야 함
-	   자식이 fork에 실패했는지 확인 */
+	/* 자식이 fork에 실패했는지 확인 */
 	struct thread *child = get_child_thread(child_tid);
 	if (child == NULL || child->exit_status == -1){
-        /* fork에 실패한 자식은 좀비가 되므로, 여기서 직접 회수(reap)해준다. */
-        if (child != NULL) {
-            list_remove(&child->child_elem); // 부모의 자식 리스트에서 제거
-            sema_up(&child->reap_sema);      // 자식이 완전히 종료되도록 신호를 보냄
-        }
 		return TID_ERROR;
 	}
 
@@ -317,7 +310,6 @@ process_wait (tid_t child_tid) {
 	int status = child->exit_status;
 
 	list_remove(&child->child_elem);
-	sema_up(&child->reap_sema);
 	//palloc_free_page(child);	//이게 아니고↓
 	child->parent = NULL;		//이렇게 부모 포인터 정리
 	
@@ -481,11 +473,6 @@ load (const char *file_name, struct intr_frame *if_) {
 	bool success = false;
 	int i;
 
-	char **argv_tokens = palloc_get_page(0);
-    if (argv_tokens == NULL) {
-        goto done;
-    }
-
 	/* 파싱을 위한 복사할 문자열 버퍼 생성 및 복사 */
 	//fn_copy = (char*) malloc(sizeof(file_name));
 	fn_copy = palloc_get_page(0);
@@ -588,6 +575,7 @@ load (const char *file_name, struct intr_frame *if_) {
 	/* TODO: Your code goes here.
 	 * TODO: Implement argument passing (see project2/argument_passing.html). */
 	/* 인자 토큰 파싱해서 저장 */
+	char *argv_tokens[MAX_ARGC];
 	int argc = 0;
 	
 	/* argv는 내부 토큰들을 가리킴 */
@@ -639,10 +627,6 @@ load (const char *file_name, struct intr_frame *if_) {
 done:
 	/* We arrive here whether the load is successful or not. */
 	
-    if (argv_tokens != NULL) {
-        palloc_free_page(argv_tokens); // ✅ 할당된 페이지 해제
-    }
-
 	palloc_free_page (fn_copy);
 	//file_close (file);
 	return success;

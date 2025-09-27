@@ -329,7 +329,6 @@ void sys_exit(int status)
 	curr->exit_called = true;					  // 명시적 종료 시그널 설정
 	printf("%s: exit(%d)\n", curr->name, status); // 0개 겠지뭐
 	sema_up(&curr->wait_sema);					  // 자식이 종료될때 부모를 up 시켜 깨움, 부모를 가리키고 있음
-	sema_down(&curr->reap_sema); 				  // 부모가 내 정보를 다 읽어갈 때까지 대기
 	thread_exit();								  // 부모 프로세스도 종료
 }
 

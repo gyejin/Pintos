@@ -4,6 +4,15 @@
         "array": "c",
         "deque": "c",
         "vector": "c",
-        "string_view": "c"
+        "string_view": "c",
+        "process.h": "c",
+        "gdt.h": "c",
+        "file.h": "c",
+        "initializer_list": "c",
+        "utility": "c",
+        "palloc.h": "c",
+        "*.inc": "c",
+        "inode.h": "c",
+        "malloc.h": "c"
     }
 }
