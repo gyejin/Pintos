@@ -20,10 +20,10 @@ alarm-simultaneous PASS
 fork-boundary PASS
 priority-donate-chain PASS
 create-bound PASS
-rox-multichild FAIL
+rox-multichild PASS
 priority-condvar PASS
 priority-donate-nest PASS
-rox-child FAIL
+rox-child PASS
 alarm-single PASS
 read-normal PASS
 priority-donate-multiple2 PASS
