@@ -333,12 +333,14 @@ void sys_exit(int status)
 	thread_exit();								  // 부모 프로세스도 종료
 }
 
-void check_address(void *addr)
-{
+void check_address(void *addr) {
 	struct thread *curr = thread_current();
-	/* 커널 영역 침범 여부(KERN_BASE 미만 + NULL인지) || 미할당 영역 접근 여부(가상주소 -> 페이지 테이블 매핑?) */
-	if (!is_user_vaddr(addr) || addr == NULL || curr->pml4 == NULL || pml4_get_page(curr->pml4, addr) == NULL)
-	{
+	if (!is_user_vaddr(addr) || addr == NULL) {
+		sys_exit(-1);
+	}
+
+	/* Project 3: 가상 메모리 주소의 유효성을 SPT를 통해 검사합니다. */
+	if (spt_find_page(&curr->spt, addr) == NULL) {
 		sys_exit(-1);
 	}
 }
