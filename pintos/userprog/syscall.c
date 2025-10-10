@@ -17,7 +17,7 @@
 
 void syscall_entry(void);
 void syscall_handler(struct intr_frame *);
-void check_address(void *addr);
+void check_address(void *addr, bool is_write);
 void sys_exit(int status);
 static bool sys_create(const char *file, unsigned initial_size);
 static int sys_open(const char *file);
@@ -41,7 +41,7 @@ void sys_seek(int fd, unsigned position);
 #define MSR_LSTAR 0xc0000082		/* Long mode SYSCALL target */
 #define MSR_SYSCALL_MASK 0xc0000084 /* Mask for the eflags */
 
-static struct lock filesys_lock;
+struct lock filesys_lock;
 
 void syscall_init(void)
 {
@@ -205,9 +205,9 @@ static int sys_filesize(int fd)
 static int sys_write(int fd, void *buffer, unsigned size)
 {
 	/* 버퍼 시작과 끝 검사하면 연속된 버퍼가 유효하다는 뜻 */
-	check_address((void *)buffer);
+	check_address((void *)buffer, false);
 	if (size > 0)
-		check_address((void *)buffer + size - 1);
+		check_address((void *)buffer + size - 1, false);
 	// 1. STDOUT이면
 	if (fd == 1)
 	{
@@ -235,9 +235,9 @@ static int sys_write(int fd, void *buffer, unsigned size)
 static int sys_read(int fd, void *buffer, unsigned size)
 {
 	/* 인자 검증 */
-	check_address(buffer);
+	check_address(buffer, true);
 	if (size > 0)
-		check_address((void *)buffer + size - 1);
+		check_address((void *)buffer + size - 1, true);
 	if (fd == 0)
 	{ // STDIN
 		// 키보드 입력은 Project 2 후반부에서 구현
@@ -280,7 +280,7 @@ static void sys_close(int fd)
 static bool sys_create(const char *file, unsigned initial_size)
 {
 	/* 주소 유효성 검증 */
-	check_address((void *)file); // 파일 포인터가 NULL이거나 커널 메모리 영역을 가리키면 exit
+	check_address((void *)file, false); // 파일 포인터가 NULL이거나 커널 메모리 영역을 가리키면 exit
 	/* 파일 생성+동기화 */
 	lock_acquire(&filesys_lock);					   // 락을 획득해서 여러프로세스 동시접근x, 다른 프로세스 끼어들지 못하게 제한
 	bool success = filesys_create(file, initial_size); // 파일 생성 초기 사이즈와 파일이름으로 (성공여부 반환)
@@ -292,7 +292,7 @@ static bool sys_create(const char *file, unsigned initial_size)
 static int sys_open(const char *file)
 {
 	/* 주소 유효성 검증 */
-	check_address((void *)file); // 파일 포인터가 NULL이거나 커널 메모리 영역을 가리키면 exit
+	check_address((void *)file, false); // 파일 포인터가 NULL이거나 커널 메모리 영역을 가리키면 exit
 	/* 파일 생성+동기화 */
 	lock_acquire(&filesys_lock);				// 락을 획득해서 여러프로세스 동시접근x, 다른 프로세스 끼어들지 못하게 제한
 	struct file *file_obj = filesys_open(file); // 파일 열기, 파일 이름 문자열을 디스크상 파일 데이터와 연결
@@ -345,14 +345,28 @@ void sys_exit(int status)
 	thread_exit();								  // 부모 프로세스도 종료
 }
 
-void check_address(void *addr) {
+void
+check_address(void *addr, bool is_write) {
 	struct thread *curr = thread_current();
+
+	// 1. 유저 영역 주소인지, NULL 포인터는 아닌지 기본 검사
 	if (!is_user_vaddr(addr) || addr == NULL) {
 		sys_exit(-1);
 	}
 
-	/* Project 3: 가상 메모리 주소의 유효성을 SPT를 통해 검사합니다. */
-	if (spt_find_page(&curr->spt, addr) == NULL) {
-		sys_exit(-1);
+	// 2. SPT에서 페이지를 찾아보고, 있다면 권한 검사
+	struct page *page = spt_find_page(&curr->spt, addr);
+	if (page != NULL) {
+		if (is_write && !page->writable) {
+			sys_exit(-1); // 쓰기 금지된 페이지에 쓰기 시도
+		}
+	} 
+	// 3. SPT에 페이지가 없다면, 스택 확장 가능성 검사
+	else {
+		void *rsp = thread_current()->rsp_stack;
+		// 스택 확장 조건: 1MB 제한 안쪽이면서, 현재 스택 포인터 근처(최대 8바이트 아래)
+		if (!((USER_STACK - (1 << 20) < addr) && (addr < USER_STACK) && (addr >= rsp - 8))) {
+			sys_exit(-1); // 스택 확장 조건에도 맞지 않으면 최종적으로 잘못된 접근
+		}
 	}
 }
