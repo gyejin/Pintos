@@ -510,9 +510,14 @@ load (const char *file_name, struct intr_frame *if_) {
 		goto done;
 	process_activate (thread_current ());
 
+	/* * 파일 시스템 접근 전 lock을 획득합니다. 
+	 */
+	lock_acquire(&filesys_lock);
+
 	/* Open executable file. */
 	file = filesys_open (copy_file_name);		//복사한 파일명으로 넣기 수정
 	if (file == NULL) {
+		lock_release(&filesys_lock); // 실패 시 lock 해제
 		printf ("load: %s: open failed\n", copy_file_name);
 		goto done;
 	}
@@ -532,6 +537,12 @@ load (const char *file_name, struct intr_frame *if_) {
 		printf ("load: %s: error loading executable\n", fn_copy);
 		goto done;
 	}
+
+	/*
+	 * 파일 메타데이터(헤더) 읽기가 끝났으므로 lock을 해제합니다.
+	 * load_segment는 각자 다른 파일 오프셋을 읽으므로 동기화가 불필요합니다.
+	 */
+	lock_release(&filesys_lock);
 
 	/* Read program headers. */
 	file_ofs = ehdr.e_phoff;
