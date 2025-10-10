@@ -180,7 +180,15 @@ vm_get_frame (void) {
 
 /* Growing the stack. */
 static void
-vm_stack_growth (void *addr UNUSED) {
+vm_stack_growth (void *addr) {
+	// 1. addr을 페이지 경계로 내림하여 새로 할당할 페이지의 주소를 계산
+	void *new_page_addr = pg_round_down(addr);
+
+	// 2. 새로운 스택 페이지를 익명 페이지(VM_ANON)로 할당
+	if (vm_alloc_page(VM_ANON | VM_STACK, new_page_addr, true)){
+		// 3. 할당 즉시 물리 메모리에 올림
+		vm_claim_page(new_page_addr);
+	}
 }
 
 /* Handle the fault on write_protected page */
@@ -204,7 +212,15 @@ vm_try_handle_fault (struct intr_frame *f, void *addr,
 	/* 2. SPT에서 페이지를 찾음 */
 	page = spt_find_page(spt, addr);
 	if (page == NULL){		//SPT에 없다면 유효하지 않은 접근 (나중에 스택 확장 처리 추가)
-		return false;
+		/* [SG] STACK GROWTH 로직 추가 */
+		void *rsp = user ? f->rsp : thread_current()->rsp_stack;
+		
+		// 스택 확장 조건 검사
+		if((USER_STACK - (1 << 20) < addr) && (addr < USER_STACK) && (addr >= rsp - 8)){
+			vm_stack_growth(addr);
+			return true;	//스택 확장 조건이면 true 반환
+		}
+		return false;	//스택 확장 조건이 아니면 false 반환
 	}
 
 	/* 3. 찾은 페이지를 물리 메모리에 올림 */
