@@ -58,8 +58,10 @@ void syscall_init(void)
 }
 
 /* The main system call interface */
-void syscall_handler(struct intr_frame *f UNUSED)
+void syscall_handler(struct intr_frame *f)
 {
+	/* [SG] 시스템 콜 진입 시 rsp_stack에 rsp 저장 */
+	thread_current()->rsp_stack = f->rsp;
 	// TODO: Your implementation goes here.
 	/* 시스템 콜 번호는 %rax레지스터에 저장 */
 	switch (f->R.rax)
