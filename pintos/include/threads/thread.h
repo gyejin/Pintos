@@ -153,6 +153,7 @@ void awake_sleep_threads(int64_t tick);
 
 void thread_block(void);
 void thread_unblock(struct thread *);
+void thread_awake(struct thread *t);
 
 struct thread *thread_current(void);
 tid_t thread_tid(void);

@@ -6,6 +6,11 @@
 #include "threads/thread.h"
 #include "intrinsic.h"
 #include "userprog/syscall.h"
+#include "userprog/process.h"
+
+#ifdef VM
+#include "vm/vm.h"
+#endif
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;

@@ -328,17 +328,29 @@ void sys_exit(int status)
 	curr->exit_status = status;					  // 부모 깨우기 전에 상태 저장
 	curr->exit_called = true;					  // 명시적 종료 시그널 설정
 	printf("%s: exit(%d)\n", curr->name, status); // 0개 겠지뭐
+
+	/*  [rox테스트 케이스 오류 해결] 
+		 부모를 깨우기 전에 현재 실행 중인 파일의 잠금을 해제
+	  	 process_exit에도 이 코드가 있지만, 레이스 컨디션(race condition)을 막기 위해 여기서 먼저 수행
+	 */
+	if (curr->running_executable != NULL) {
+		file_close(curr->running_executable);
+		curr->running_executable = NULL;
+	}
+
 	sema_up(&curr->wait_sema);					  // 자식이 종료될때 부모를 up 시켜 깨움, 부모를 가리키고 있음
 	sema_down(&curr->reap_sema); 				  // 부모가 내 정보를 다 읽어갈 때까지 대기
 	thread_exit();								  // 부모 프로세스도 종료
 }
 
-void check_address(void *addr)
-{
+void check_address(void *addr) {
 	struct thread *curr = thread_current();
-	/* 커널 영역 침범 여부(KERN_BASE 미만 + NULL인지) || 미할당 영역 접근 여부(가상주소 -> 페이지 테이블 매핑?) */
-	if (!is_user_vaddr(addr) || addr == NULL || curr->pml4 == NULL || pml4_get_page(curr->pml4, addr) == NULL)
-	{
+	if (!is_user_vaddr(addr) || addr == NULL) {
+		sys_exit(-1);
+	}
+
+	/* Project 3: 가상 메모리 주소의 유효성을 SPT를 통해 검사합니다. */
+	if (spt_find_page(&curr->spt, addr) == NULL) {
 		sys_exit(-1);
 	}
 }

@@ -22,6 +22,14 @@
 #include "vm/vm.h"
 #endif
 
+/* 지연 로딩에 필요한 정보를 담는 구조체 */
+struct lazy_load_info{
+	struct file *file;
+	off_t ofs;
+	uint32_t read_bytes;
+	uint32_t zero_bytes;
+};
+
 static void process_cleanup (void);
 static bool load (const char *file_name, struct intr_frame *if_);
 static void initd (void *f_name);
@@ -802,6 +810,28 @@ lazy_load_segment (struct page *page, void *aux) {
 	/* TODO: Load the segment from the file */
 	/* TODO: This called when the first page fault occurs on address VA. */
 	/* TODO: VA is available when calling this function. */
+	/* aux포인터를 통해 load_segment에서 전달한 정보를 받음 */
+	struct lazy_load_info *info = (struct lazy_load_info *)aux;
+	struct file *file = info->file;
+	off_t ofs = info->ofs;
+	size_t page_read_bytes = info->read_bytes;
+	size_t page_zero_bytes = info->zero_bytes;
+
+	/* 파일 포인터의 위치를 읽어야 할 오프셋으로 이동 */
+	file_seek(file, ofs);
+
+	/* 파일에서 데이터를 읽어 페이지의 물리 프레임(kva)에 저장*/
+	if (file_read(file, page->frame->kva, page_read_bytes) != (int) page_read_bytes){
+		free(info);		//실패 시 정보 구조체 메모리 해제
+		return false;
+	}
+
+	/* 페이지의 나머지 부분을 0으로 채움 */
+	memset (page->frame->kva + page_read_bytes, 0, page_zero_bytes);
+
+	/* 사용이 끝난 정보 구조체의 메모리를 해제 */
+	free(info);
+	return true;
 }
 
 /* Loads a segment starting at offset OFS in FILE at address
@@ -825,6 +855,9 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 	ASSERT (pg_ofs (upage) == 0);
 	ASSERT (ofs % PGSIZE == 0);
 
+	/* 파일 포인터를 다시 처음으로 이동 (while 루프에서 ofs 기준으로 seek 하기위함) */
+	file_seek(file, ofs);
+
 	while (read_bytes > 0 || zero_bytes > 0) {
 		/* Do calculate how to fill this page.
 		 * We will read PAGE_READ_BYTES bytes from FILE
@@ -833,15 +866,30 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
 		/* TODO: Set up aux to pass information to the lazy_load_segment. */
-		void *aux = NULL;
-		if (!vm_alloc_page_with_initializer (VM_ANON, upage,
-					writable, lazy_load_segment, aux))
+		/* 1. 지연 로딩에 필요한 정보를 담을 구조체를 동적 할당 */
+		struct lazy_load_info *info = (struct lazy_load_info *)malloc(sizeof(struct lazy_load_info));
+		if (info == NULL){
 			return false;
+		}
+
+		/* 2. 구조체에 파일 관련된 정보를 채움 */
+		info->file = file;
+		info->ofs = ofs;
+		info->read_bytes = page_read_bytes;
+		info->zero_bytes = page_zero_bytes;
+
+		/* 3. 초기화 되지 않은 페이지(VM_UNINIT) 생성, 페이지 폴트 시 lazy_load_segment 함수가 호출되도록 설정
+			info 구조체를 aux인자로 전달하여 나중에 사용할 수 있게함 */
+		if (!vm_alloc_page_with_initializer (VM_FILE, upage, writable, lazy_load_segment, info)){
+			free(info);
+			return false;
+		}
 
 		/* Advance. */
 		read_bytes -= page_read_bytes;
 		zero_bytes -= page_zero_bytes;
 		upage += PGSIZE;
+		ofs += page_read_bytes;	//다음 페이지로 이동
 	}
 	return true;
 }
@@ -856,6 +904,15 @@ setup_stack (struct intr_frame *if_) {
 	 * TODO: If success, set the rsp accordingly.
 	 * TODO: You should mark the page is stack. */
 	/* TODO: Your code goes here */
+	/* 1. 파일에 매핑되지 않은 익명 페이지(VM_ANON)을 스택용으로 할당 */
+	if (vm_alloc_page (VM_ANON, stack_bottom, true)){
+		/* 2. 스택은 즉시 필요하므로, 할당 직후 바로 물리 메모리에 올림(claim)*/
+		if (vm_claim_page(stack_bottom)){
+			/* 3. 스택 포인터(rsp)를 USER_STACK으로 설정 */
+			if_->rsp = USER_STACK;
+			success = true;
+		}
+	}
 
 	return success;
 }
