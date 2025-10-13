@@ -27,6 +27,8 @@ static int sys_write(int fd, void *buffer, unsigned size);
 static int sys_filesize(int fd);
 static int sys_exec(const char *cmd_line);
 void sys_seek(int fd, unsigned position);
+static void *sys_mmap (void *addr, size_t length, int writable, int fd, off_t offset);
+static void sys_munmap (void *addr);
 
 /* System call.
  *
@@ -127,6 +129,18 @@ void syscall_handler(struct intr_frame *f)
 	case SYS_SEEK:
 	{
 		sys_seek((int)f->R.rdi, (unsigned)f->R.rsi); // file descriptor와 현재 위치 rsi 넘겨줌
+		break;
+	}
+	case SYS_MMAP:
+	{
+		// mmap(void *addr, size_t length, int writable, int fd, off_t offset)
+		f->R.rax = sys_mmap(f->R.rdi, f->R.rsi, f->R.rdx, f->R.r10, f->R.r8);
+		break;
+	}
+	case SYS_MUNMAP:
+	{
+		// munmap(void *addr)
+		sys_munmap(f->R.rdi);
 		break;
 	}
 	}
@@ -343,6 +357,41 @@ void sys_exit(int status)
 	sema_up(&curr->wait_sema);					  // 자식이 종료될때 부모를 up 시켜 깨움, 부모를 가리키고 있음
 	sema_down(&curr->reap_sema); 				  // 부모가 내 정보를 다 읽어갈 때까지 대기
 	thread_exit();								  // 부모 프로세스도 종료
+}
+
+/* mmap 시스템 콜을 처리하는 래퍼(wrapper) 함수 */
+static void *
+sys_mmap (void *addr, size_t length, int writable, int fd, off_t offset) {
+	// offset이 페이지 정렬되지 않았는지 검사 (mmap-bad-off)
+    if (offset % PGSIZE != 0) {
+        return NULL;
+    }
+
+    // addr이 유저 영역인지, 커널 영역을 침범하지 않는지 검사 (mmap-kernel)
+    if (is_kernel_vaddr(addr) || is_kernel_vaddr(addr + length)) {
+        return NULL;
+    }
+	
+    // 1. 인자 유효성 검사 (fd, addr, length 등)
+    if (fd < 2 || addr == NULL || pg_ofs(addr) != 0 || length == 0) {
+        return NULL; // MAP_FAILED
+    }
+
+    // 2. 파일 디스크립터로부터 file 객체 찾기
+    struct thread *curr = thread_current();
+    struct file *file = curr->fd_table[fd];
+    if (file == NULL) {
+        return NULL; // MAP_FAILED
+    }
+    
+    // 3. do_mmap 호출
+    return do_mmap(addr, length, writable, file, offset);
+}
+
+/* munmap 시스템 콜을 처리하는 래퍼(wrapper) 함수 */
+static void
+sys_munmap (void *addr) {
+    do_munmap(addr);
 }
 
 void
