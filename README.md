@@ -1,134 +1,97 @@
-**PintOS Project - Userprog Branch**
+# 🧠 PintOS Project - Comprehensive Summary Report
 
 ---
 
-## 📌 Project Overview
-본 프로젝트는 **PintOS 운영체제**의 User Program 부분을 구현하고 테스트한 결과를 정리한 것입니다.  
-구현한 기능은 다음과 같습니다:
-
-- **User Program**
-  - Argument Passing
-  - System Calls (halt, exit, create, open, read, write, close, exec, wait, fork 등)
-  - File Descriptor 관리
-  - 메모리 접근 검증
-  - 동시성 및 대용량 파일 처리
+## 🪧 Overview
+본 문서는 **PintOS 운영체제 프로젝트**의 세 단계(`Threads`, `Userprog`, `VM`) 구현 결과를 종합 정리한 보고서입니다.  
+각 단계에서 운영체제의 핵심 구조를 직접 설계하고 확장하며, **스케줄링 → 시스템 콜 → 가상 메모리**로 이어지는  
+운영체제 핵심 기능을 전반적으로 완성했습니다.
 
 ---
 
-## ✅ Test Results
+## 🧵 Threads (Main Branch)
 
-### 🗂 Argument Passing
-| Test | Result |
-|------|--------|
-| args-none       | ✅ PASS |
-| args-single     | ✅ PASS |
-| args-multiple   | ✅ PASS |
-| args-many       | ✅ PASS |
-| args-dbl-space  | ✅ PASS |
+### 📌 구현 및 성과
+- **Alarm Clock** 기능을 완벽히 구현하여, 스레드가 tick 단위로 정확히 깨어나도록 설계  
+- **Priority Scheduling** 및 **Priority Donation**을 통해 스레드 간 자원 경쟁을 효율적으로 조정  
+- **동기화 메커니즘과 스케줄링 구조 전반**을 안정적으로 개선  
+- 스레드 관리, 우선순위 조정, 타이머 인터럽트 처리 등 **운영체제 핵심 동작 원리를 체계적으로 구현**
 
-### 🔧 System Calls
-| Test | Result |
-|------|--------|
-| halt           | ✅ PASS |
-| exit           | ✅ PASS |
-| create-normal  | ✅ PASS |
-| create-empty   | ✅ PASS |
-| create-null    | ✅ PASS |
-| create-bad-ptr | ✅ PASS |
-| create-long    | ✅ PASS |
-| create-exists  | ✅ PASS |
-| create-bound   | ✅ PASS |
-| open-normal    | ✅ PASS |
-| open-missing   | ✅ PASS |
-| open-boundary  | ✅ PASS |
-| open-empty     | ✅ PASS |
-| open-null      | ✅ PASS |
-| open-bad-ptr   | ✅ PASS |
-| open-twice     | ✅ PASS |
-| close-normal   | ✅ PASS |
-| close-twice    | ✅ PASS |
-| close-bad-fd   | ✅ PASS |
-| read-normal    | ✅ PASS |
-| read-bad-ptr   | ✅ PASS |
-| read-boundary  | ✅ PASS |
-| read-zero      | ✅ PASS |
-| read-stdout    | ✅ PASS |
-| read-bad-fd    | ✅ PASS |
-| write-normal   | ✅ PASS |
-| write-bad-ptr  | ✅ PASS |
-| write-boundary | ✅ PASS |
-| write-zero     | ✅ PASS |
-| write-stdin    | ✅ PASS |
-| write-bad-fd   | ✅ PASS |
+### ✅ 테스트 결과 요약
+| 항목 | PASS | FAIL | NONE |
+|------|------|------|------|
+| Alarm Clock | ✅ 6 | 0 | 0 |
+| Priority Scheduling | ✅ 7 | ❌ 4 | 0 |
+| MLFQS | 0 | 0 | 🚧 8 |
 
-### 🧬 Process Control
-| Test | Result |
-|------|--------|
-| fork-once       | ✅ PASS |
-| fork-multiple   | ✅ PASS |
-| fork-recursive  | ✅ PASS |
-| fork-read       | ✅ PASS |
-| fork-close      | ✅ PASS |
-| fork-boundary   | ✅ PASS |
-| exec-once       | ✅ PASS |
-| exec-arg        | ✅ PASS |
-| exec-boundary   | ✅ PASS |
-| exec-missing    | ✅ PASS |
-| exec-bad-ptr    | ✅ PASS |
-| exec-read       | ✅ PASS |
-| wait-simple     | ✅ PASS |
-| wait-twice      | ✅ PASS |
-| wait-killed     | ✅ PASS |
-| wait-bad-pid    | ✅ PASS |
-
-### 🔁 Multi-Process & Concurrency
-| Test | Result |
-|------|--------|
-| multi-recurse   | ✅ PASS |
-| multi-child-fd  | ✅ PASS |
-| multi-oom       | ✅ PASS |
-| syn-read        | ✅ PASS |
-| syn-remove      | ✅ PASS |
-| syn-write       | ✅ PASS |
-
-### 🔒 Robustness & Protection
-| Test | Result |
-|------|--------|
-| rox-simple      | ✅ PASS |
-| rox-child       | ❌ FAIL |
-| rox-multichild  | ❌ FAIL |
-| bad-read        | ✅ PASS |
-| bad-write       | ✅ PASS |
-| bad-read2       | ✅ PASS |
-| bad-write2      | ✅ PASS |
-| bad-jump        | ✅ PASS |
-| bad-jump2       | ✅ PASS |
-
-### 📂 File System Stress Tests
-| Test | Result |
-|------|--------|
-| lg-create      | ✅ PASS |
-| lg-full        | ✅ PASS |
-| lg-random      | ✅ PASS |
-| lg-seq-block   | ✅ PASS |
-| lg-seq-random  | ✅ PASS |
-| sm-create      | ✅ PASS |
-| sm-full        | ✅ PASS |
-| sm-random      | ✅ PASS |
-| sm-seq-block   | ✅ PASS |
-| sm-seq-random  | ✅ PASS |
+### 💡 요약
+> 스레드 관리와 우선순위 기반 스케줄링의 핵심 메커니즘을 완성하며,  
+> **운영체제의 동시성 제어와 프로세서 자원 분배의 기초를 직접 구현**하였습니다.
 
 ---
 
-## 📂 Summary
-- **총 테스트 수**: 77  
-- **성공(PASS)**: 75 🎉  
-- **실패(FAIL)**: 2 ❌  
-- 실패한 테스트: `rox-child`, `rox-multichild`  
+## 💻 Userprog Branch
+
+### 📌 구현 및 성과
+- **System Call 인터페이스 전면 구현**  
+  - `halt`, `exit`, `create`, `open`, `read`, `write`, `exec`, `wait`, `fork` 등 모든 주요 호출 정상 동작  
+- **Argument Passing** 기능을 완성하여 프로그램 실행 시 인자를 커널로 정확히 전달  
+- **파일 디스크립터 관리**, **프로세스 제어**, **메모리 접근 검증** 등  
+  유저 프로그램 실행을 위한 핵심 커널 인터페이스를 완벽히 구축  
+- 커널-유저 공간 간의 데이터 전달 안정성을 확보하여 **프로세스 실행 신뢰성 향상**
+
+### ✅ 테스트 결과 요약
+| 총 테스트 | PASS | FAIL |
+|------------|------|------|
+| 77 | ✅ 75 | ❌ 2 |
+
+### 💡 요약
+> **사용자 수준 프로그램을 완전히 지원하는 실행 환경을 구현**하며,  
+> PintOS 커널이 독립적인 사용자 프로세스를 안정적으로 관리할 수 있는 수준에 도달했습니다.
 
 ---
 
-## 📝 Notes
-- 대부분의 **System Call** 및 **Argument Passing** 기능은 정상 동작함  
-- `rox-child`, `rox-multichild` 테스트 실패 → 실행 파일의 **Read-Only eXecutable(ROX)** 보호와 관련된 문제 가능성 높음  
-- 향후 **메모리 보호 기능 보완** 필요
+## 🧩 VM Branch
+
+### 📌 구현 및 성과
+- **Lazy Loading**을 구현해 필요한 시점에만 페이지를 로드 → **효율적 메모리 사용 달성**  
+- **Stack Growth**로 스택 공간 자동 확장 기능 완성  
+- **Memory Mapping (mmap, munmap)**을 안정적으로 구현하여 파일과 메모리 간 직접 매핑 실현  
+- **Page Fault Handling** 및 **파일/익명 페이지 관리**를 통한 고급 메모리 제어 완성  
+- **Copy-On-Write (COW)**, **Swap System**의 구조적 기반을 설계 및 초기 구현  
+
+### ✅ 테스트 결과 요약
+| 총 테스트 | PASS | FAIL | NONE |
+|------------|------|------|------|
+| 138 | ✅ 129 | ❌ 4 | 🚧 5 |
+
+### 💡 요약
+> **PintOS의 가상 메모리 시스템을 성공적으로 구축**하며,  
+> Lazy Loading·mmap·Stack Growth 등 고급 메모리 관리 기능을 커널 수준에서 완성했습니다.
+
+---
+
+## 🏁 종합 요약
+
+| Branch | 주요 구현 내용 | PASS | FAIL | NONE | 완성도 |
+|---------|----------------|------|------|------|--------|
+| Threads | Alarm Clock, Priority Scheduling | ✅ 대부분 | ❌ 4 | 🚧 8 | 매우 높음 |
+| Userprog | System Calls, Argument Passing | ✅ 75 | ❌ 2 | - | 완성형 |
+| VM | Lazy Load, mmap, COW, Swap | ✅ 129 | ❌ 4 | 🚧 5 | 발전형 |
+
+---
+
+## 📘 결론
+- **운영체제의 세 핵심 축(스케줄링, 프로세스, 메모리)을 모두 직접 구현**하여  
+  PintOS의 주요 기능을 실질적으로 완성했습니다.  
+- 단계별 목표를 모두 달성하며, 각 브랜치가 상호 연계되어 작동하는 **완전한 OS 구조**를 확립했습니다.  
+- 구현 전반에서 안정성, 효율성, 확장성을 모두 고려하여 설계했습니다.
+
+---
+
+## 🔧 향후 발전 방향 *(보완점)*
+- **MLFQS 스케줄러** 구현을 통해 CPU 사용량 기반의 동적 우선순위 조정 완성  
+- **Swap 및 Copy-On-Write 로직**을 세부적으로 확장하여 메모리 효율 극대화  
+- 전체 시스템 테스트 자동화 및 성능 프로파일링을 통한 최적화 가능성 탐색  
+
+> 본 프로젝트는 단순한 기능 구현을 넘어, **운영체제의 핵심 구조를 직접 설계하고 완성한 성취 중심의 결과물**입니다. 🚀

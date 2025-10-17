@@ -235,7 +235,8 @@ __do_fork (void *aux) {
 		struct file *file_obj = parent->fd_table[i];
 		if (file_obj != NULL){
 			/* 같은 파일을 가리키는 새 file 객체를 만듦 */
-			current->fd_table[i] = file_duplicate(file_obj);
+			//current->fd_table[i] = file_duplicate(file_obj);
+			current->fd_table[i] = file_obj; // 얕은 복사로 강제 변경
 		}
 	}
 	current->next_fd = parent->next_fd;
