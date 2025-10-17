@@ -5,7 +5,7 @@
        "includePath": [
         "${workspaceFolder}/**"
       ],
-      "defines": ["USERPROG"]
+      "defines": ["USERPROG", "VM", "EFILESYS"]
     }
   ],
   "version": 4
